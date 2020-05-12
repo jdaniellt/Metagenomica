@@ -1,0 +1,109 @@
+---
+title: "TAREA 8.2: Análisis de datos Illumina MiSeq desde amptk"
+author: "José Daniel Lara-Tufiño"
+output: html_document
+---
+### Análisis de datos Illumina MiSeq con amptk
+
+#### Hacer Set working directory a la locación de nuestro archivo .biom
+
+```{r}
+library(ggplot2)
+library(vegan)
+library(phyloseq)
+```
+
+
+#### 1. Generar tabla de OTU binomial (presencia/ausencia) usando la función decostand (method="pa") de vegan.
+#### Importar datos
+
+```{r}
+suelo <- import_biom("taxonomy.biom")
+suelo
+```
+#### Realizar tabla de OTU´s
+
+```{r}
+otu_table<-as.data.frame(otu_table(suelo))
+presencia_ausencia <- decostand(otu_table, method="pa")
+
+```
+
+#### Modificar nombre de las columnas
+
+```{r}
+colnames(tax_table(suelo)) <-c("Domain", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+head(tax_table(suelo))
+
+colnames(tax_table(suelo)) <-c("Domain", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+head(tax_table(suelo))
+```
+
+#### crear physeq object
+
+```{r}
+phyloseq <- merge_phyloseq(otu_table(presencia_ausencia, taxa_are_rows = TRUE), tax_table(suelo), sample_data (suelo))
+```
+
+
+### 2.Realizar un plot_bar de la abundancia de OTUs por phylum en cada hospedero (host) y tratamiento (treatment) usando facet_wrap.
+
+#### Hacer plot_bar de la abundancia de OTUs por phylum para cada hospedero (host) mediante facet_wrap
+
+```{r}
+
+p = plot_bar(phyloseq, "Host", fill="Phylum") + geom_bar(aes(color=Phylum, fill=Phylum), stat = "identity",position = "stack")
+p + facet_wrap("Treatment")
+```
+#### crear plot_bar de la abundancia de OTUs por phylum por tratamiento (treatment) usando facet_wrap
+```{r}
+
+p = plot_bar(phyloseq, "Treatment", fill="Phylum") + geom_bar(aes(color=Phylum, fill=Phylum), stat = "identity",position = "stack")
+p + facet_wrap("Host")
+```
+
+
+### 3. Hacer un anova de la riqueza observada ("Observed") por hospedero y tratamiento (two-way)
+#### Estimar diversidad alfa y combonar datos.
+
+
+```{r}
+diversity <- estimate_richness(phyloseq,measures = c("Observed", "Fisher"))
+diversity
+
+data_host <- cbind(sample_data(suelo),diversity)
+data_host
+```
+
+
+
+```{r}
+#Anova two-ways
+anova <- aov(Fisher ~ Host * Treatment, data = data_host)
+summary (anova)
+boxplot(Fisher ~ Host * Treatment, data = data_host)
+```
+
+Hacer prueba de disimilitud
+```{r}
+##Ordinación: cuales oson las muestrs mas parecidas a otros
+raup <- distance(phyloseq, method = "raup")
+```
+
+```{r}
+#realizar una ordinación NMDS por host y treatment
+NMDS= ordinate(phyloseq, method = "NMDS", color="Host", shape="Treatment")
+NMDS= ordinate(phyloseq, method = "NMDS", distance = raup)
+NMDS
+####graficar resutados
+plot_ordination(suelo, NMDS, color="Host") + geom_point(size=3)+
+  facet_wrap(~Treatment) +
+  theme_bw()
+```
+
+### 5. Hacer un test de adonis de la composición de la comunidad por hospedero y tratamiento
+```{r}
+adonis(raup~Host * Treatment, data = data_host)
+```
+
+
